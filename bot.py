@@ -2,222 +2,257 @@ import os
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
+from googletrans import Translator, LANGUAGES
+import asyncio
 
 # Enable logging
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# Language mapping for 69 languages (expanded list)
-# Based on Telegram bot standards for translation support [citation:1][citation:2]
-LANGUAGES = {
-    "af": "Afrikaans", "sq": "Albanian", "am": "Amharic", "ar": "Arabic",
-    "hy": "Armenian", "az": "Azerbaijani", "eu": "Basque", "be": "Belarusian",
-    "bn": "Bengali", "bs": "Bosnian", "bg": "Bulgarian", "ca": "Catalan",
-    "ceb": "Cebuano", "ny": "Chichewa", "zh-cn": "Chinese Simplified",
-    "zh-tw": "Chinese Traditional", "co": "Corsican", "hr": "Croatian",
-    "cs": "Czech", "da": "Danish", "nl": "Dutch", "en": "English",
-    "eo": "Esperanto", "et": "Estonian", "tl": "Filipino", "fi": "Finnish",
-    "fr": "French", "fy": "Frisian", "gl": "Galician", "ka": "Georgian",
-    "de": "German", "el": "Greek", "gu": "Gujarati", "ht": "Haitian Creole",
-    "ha": "Hausa", "haw": "Hawaiian", "he": "Hebrew", "hi": "Hindi",
-    "hmn": "Hmong", "hu": "Hungarian", "is": "Icelandic", "ig": "Igbo",
-    "id": "Indonesian", "ga": "Irish", "it": "Italian", "ja": "Japanese",
-    "jw": "Javanese", "kn": "Kannada", "kk": "Kazakh", "km": "Khmer",
-    "rw": "Kinyarwanda", "ko": "Korean", "ku": "Kurdish", "ky": "Kyrgyz",
-    "lo": "Lao", "la": "Latin", "lv": "Latvian", "lt": "Lithuanian",
-    "lb": "Luxembourgish", "mk": "Macedonian", "mg": "Malagasy", "ms": "Malay",
-    "ml": "Malayalam", "mt": "Maltese", "mi": "Maori", "mr": "Marathi",
-    "mn": "Mongolian", "my": "Myanmar", "ne": "Nepali", "no": "Norwegian",
-    "or": "Odia", "ps": "Pashto", "fa": "Persian", "pl": "Polish",
-    "pt": "Portuguese", "pa": "Punjabi", "ro": "Romanian", "ru": "Russian",
-    "sm": "Samoan", "gd": "Scots Gaelic", "sr": "Serbian", "st": "Sesotho",
-    "sn": "Shona", "sd": "Sindhi", "si": "Sinhala", "sk": "Slovak",
-    "sl": "Slovenian", "so": "Somali", "es": "Spanish", "su": "Sundanese",
-    "sw": "Swahili", "sv": "Swedish", "tg": "Tajik", "ta": "Tamil",
-    "tt": "Tatar", "te": "Telugu", "th": "Thai", "tr": "Turkish",
-    "tk": "Turkmen", "uk": "Ukrainian", "ur": "Urdu", "ug": "Uyghur",
-    "uz": "Uzbek", "vi": "Vietnamese", "cy": "Welsh", "xh": "Xhosa",
-    "yi": "Yiddish", "yo": "Yoruba", "zu": "Zulu"
+# Initialize translator
+translator = Translator()
+
+# Language codes for the most common 100 languages
+LANGUAGE_CODES = {
+    'en': 'English', 'es': 'Spanish', 'fr': 'French', 'de': 'German',
+    'it': 'Italian', 'pt': 'Portuguese', 'ru': 'Russian', 'zh-cn': 'Chinese (Simplified)',
+    'ja': 'Japanese', 'ko': 'Korean', 'ar': 'Arabic', 'hi': 'Hindi',
+    'bn': 'Bengali', 'ur': 'Urdu', 'fa': 'Persian', 'tl': 'Tagalog',
+    'vi': 'Vietnamese', 'th': 'Thai', 'id': 'Indonesian', 'ms': 'Malay',
+    'ne': 'Nepali', 'sw': 'Swahili', 'ha': 'Hausa', 'yo': 'Yoruba',
+    'ig': 'Igbo', 'zu': 'Zulu', 'af': 'Afrikaans', 'am': 'Amharic',
+    'az': 'Azerbaijani', 'be': 'Belarusian', 'bg': 'Bulgarian', 'bs': 'Bosnian',
+    'ca': 'Catalan', 'ceb': 'Cebuano', 'co': 'Corsican', 'cs': 'Czech',
+    'cy': 'Welsh', 'da': 'Danish', 'el': 'Greek', 'eo': 'Esperanto',
+    'et': 'Estonian', 'eu': 'Basque', 'fi': 'Finnish', 'fy': 'Frisian',
+    'ga': 'Irish', 'gd': 'Scottish Gaelic', 'gl': 'Galician', 'gu': 'Gujarati',
+    'haw': 'Hawaiian', 'he': 'Hebrew', 'hmn': 'Hmong', 'hr': 'Croatian',
+    'ht': 'Haitian Creole', 'hu': 'Hungarian', 'hy': 'Armenian', 'is': 'Icelandic',
+    'jw': 'Javanese', 'ka': 'Georgian', 'kk': 'Kazakh', 'km': 'Khmer',
+    'kn': 'Kannada', 'ku': 'Kurdish', 'ky': 'Kyrgyz', 'la': 'Latin',
+    'lb': 'Luxembourgish', 'lo': 'Lao', 'lt': 'Lithuanian', 'lv': 'Latvian',
+    'mg': 'Malagasy', 'mi': 'Maori', 'mk': 'Macedonian', 'ml': 'Malayalam',
+    'mn': 'Mongolian', 'mr': 'Marathi', 'mt': 'Maltese', 'my': 'Burmese',
+    'ny': 'Chichewa', 'or': 'Odia', 'pa': 'Punjabi', 'pl': 'Polish',
+    'ps': 'Pashto', 'ro': 'Romanian', 'rw': 'Kinyarwanda', 'sd': 'Sindhi',
+    'si': 'Sinhala', 'sk': 'Slovak', 'sl': 'Slovenian', 'sm': 'Samoan',
+    'sn': 'Shona', 'so': 'Somali', 'sq': 'Albanian', 'sr': 'Serbian',
+    'st': 'Sesotho', 'su': 'Sundanese', 'sv': 'Swedish', 'ta': 'Tamil',
+    'te': 'Telugu', 'tg': 'Tajik', 'tr': 'Turkish', 'uk': 'Ukrainian',
+    'uz': 'Uzbek', 'xh': 'Xhosa', 'yi': 'Yiddish', 'yo': 'Yoruba'
 }
 
-# User language preferences storage (in production, use a database)
-user_preferences = {}
-
-# Translation function using MyMemory API (free, no API key required) [citation:9]
-import requests
-import json
-
-def translate_text(text, target_lang, source_lang="auto"):
-    """Translate text using MyMemory API - free and works without API key"""
-    url = "https://api.mymemory.translated.net/get"
-    params = {
-        "q": text,
-        "langpair": f"{source_lang}|{target_lang}",
-        "de": "your_email@example.com"  # Replace with your email for higher limits
-    }
-    
-    try:
-        response = requests.get(url, params=params, timeout=10)
-        data = response.json()
-        
-        if response.status_code == 200 and data.get("responseStatus") == 200:
-            return data.get("responseData", {}).get("translatedText", "Translation failed")
-        else:
-            return f"Error: {data.get('responseDetails', 'Unknown error')}"
-    except Exception as e:
-        logger.error(f"Translation error: {e}")
-        return f"Translation error: {str(e)}"
+# User preferences storage (in-memory)
+user_languages = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Send welcome message with language selection"""
-    keyboard = [
-        [InlineKeyboardButton("🌍 Select Language", callback_data="select_lang")],
-        [InlineKeyboardButton("ℹ️ Help", callback_data="help")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await update.message.reply_text(
-        "🤖 Welcome to Language 69 Translator Bot!\n\n"
-        "Send me any text and I'll translate it to your chosen language.\n"
-        "Use /setlang to change your preferred language.\n"
-        "Available: 69 languages! 🌍",
-        reply_markup=reply_markup
-    )
+    """Send a welcome message when /start is issued."""
+    user = update.effective_user
+    welcome_message = f"""
+🌟 *Welcome to Language 100 Translator Bot, {user.first_name}!* 🌟
 
-async def set_lang(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Let user choose their translation target language"""
-    keyboard = []
-    # Show a subset of languages to avoid overwhelming the user
-    popular_langs = ["en", "es", "fr", "de", "zh-cn", "ja", "ar", "ru", "pt", "it", "hi", "ko"]
-    
-    row = []
-    for i, code in enumerate(popular_langs):
-        row.append(InlineKeyboardButton(LANGUAGES.get(code, code), callback_data=f"lang_{code}"))
-        if len(row) == 3:  # 3 buttons per row
-            keyboard.append(row)
-            row = []
-    if row:
-        keyboard.append(row)
-    
-    keyboard.append([InlineKeyboardButton("📚 See All 69 Languages", callback_data="show_all_langs")])
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await update.message.reply_text(
-        "🌍 Select your translation target language:",
-        reply_markup=reply_markup
-    )
+I can translate text between 100+ languages.
 
-async def show_all_langs(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show all 69 available languages"""
-    query = update.callback_query
-    await query.answer()
-    
-    lang_list = "\n".join([f"• {name} (`{code}`)" for code, name in sorted(LANGUAGES.items())])
-    await query.edit_message_text(
-        f"📚 **All 69 Supported Languages:**\n\n{lang_list}\n\n"
-        "Use /setlang to set your preferred language.",
-        parse_mode="Markdown"
-    )
+*Commands:*
+/translate - Translate text to your preferred language
+/setlang - Set your preferred target language
+/languages - See all available languages
+/help - Show this help message
 
-async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle button callbacks"""
-    query = update.callback_query
-    await query.answer()
+*How to use:*
+1. Simply send me any text and I'll auto-detect and translate it to your preferred language
+2. Use /setlang to change your target language (default is English)
+3. Use /translate to manually choose source and target languages
+
+Start by sending me any text to translate! 🚀
+"""
+    await update.message.reply_text(welcome_message, parse_mode='Markdown')
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Send a help message."""
+    help_text = """
+📖 *Help Guide*
+
+*Basic Usage:*
+• Send any text → I'll auto-detect and translate to your preferred language
+• Use /setlang → Change your target language
+• Use /translate → Source → Target translation
+
+*Examples:*
+• Send "Hello world" → Translates to your preferred language
+• Use /translate en es [text] → Translates from English to Spanish
+• Use /languages → Shows all supported languages
+
+*Tips:*
+• Your preferred language is saved for future translations
+• Use language codes like: en, es, fr, de, ja, zh-cn, etc.
+
+Need help? Just ask! 😊
+"""
+    await update.message.reply_text(help_text, parse_mode='Markdown')
+
+async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Set user's preferred target language."""
+    user_id = update.effective_user.id
     
-    data = query.data
-    
-    if data == "select_lang":
-        await set_lang(update, context)
-        return
-    
-    if data == "help":
-        await query.edit_message_text(
-            "ℹ️ **How to use:**\n\n"
-            "1. Set your target language with /setlang\n"
-            "2. Send any text message\n"
-            "3. Bot replies with translation!\n\n"
-            "Commands:\n"
-            "/start - Welcome\n"
-            "/setlang - Change language\n"
-            "/help - This help",
-            parse_mode="Markdown"
+    # If no args provided, show current language
+    if not context.args:
+        current = user_languages.get(user_id, 'en')
+        await update.message.reply_text(
+            f"🌐 Your current target language is: *{LANGUAGE_CODES.get(current, current)}* ({current})\n\n"
+            f"To change it, use: /setlang [language_code]\n"
+            f"Example: /setlang es\n"
+            f"Use /languages to see all available codes.",
+            parse_mode='Markdown'
         )
         return
     
-    if data == "show_all_langs":
-        await show_all_langs(update, context)
-        return
+    # Set new language
+    new_lang = context.args[0].lower()
+    if new_lang in LANGUAGE_CODES:
+        user_languages[user_id] = new_lang
+        await update.message.reply_text(
+            f"✅ Language set to: *{LANGUAGE_CODES[new_lang]}* ({new_lang})",
+            parse_mode='Markdown'
+        )
+    else:
+        await update.message.reply_text(
+            f"❌ Language code '{new_lang}' not supported.\n"
+            f"Use /languages to see all available codes."
+        )
+
+async def show_languages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show all available languages."""
+    # Split languages into pages (20 per page)
+    lang_list = sorted(LANGUAGE_CODES.items())
+    chunks = [lang_list[i:i+20] for i in range(0, len(lang_list), 20)]
     
-    if data.startswith("lang_"):
-        lang_code = data.replace("lang_", "")
-        user_id = update.effective_user.id
-        user_preferences[user_id] = lang_code
+    for i, chunk in enumerate(chunks, 1):
+        message = f"🌍 *Languages (Page {i}/{len(chunks)})*\n\n"
+        for code, name in chunk:
+            message += f"• `{code}` → {name}\n"
         
-        await query.edit_message_text(
-            f"✅ Language set to: **{LANGUAGES.get(lang_code, lang_code)}**\n\n"
-            f"Now send me any text to translate!",
-            parse_mode="Markdown"
-        )
+        if i == 1:
+            message += "\nUse /setlang [code] to set your target language."
+        
+        await update.message.reply_text(message, parse_mode='Markdown')
 
-async def translate_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Translate incoming text messages"""
+async def translate_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Translate received text."""
     user_id = update.effective_user.id
     text = update.message.text
     
-    target_lang = user_preferences.get(user_id, "en")
+    # Get user's preferred language (default: English)
+    target_lang = user_languages.get(user_id, 'en')
     
-    # Show user what's happening
-    status_msg = await update.message.reply_text("🔄 Translating...")
-    
-    translated = translate_text(text, target_lang)
-    
-    await status_msg.delete()
-    await update.message.reply_text(
-        f"🌍 **Translation ({LANGUAGES.get(target_lang, target_lang)}):**\n\n{translated}",
-        parse_mode="Markdown"
-    )
+    try:
+        # Auto-detect source and translate
+        translated = translator.translate(text, dest=target_lang)
+        
+        # Get source language name
+        src_lang_name = LANGUAGE_CODES.get(translated.src, translated.src)
+        tgt_lang_name = LANGUAGE_CODES.get(target_lang, target_lang)
+        
+        response = f"""
+🔤 *Translation Results*
+━━━━━━━━━━━━━━━━━━
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Help command"""
-    await update.message.reply_text(
-        "ℹ️ **Language 69 Translator Bot**\n\n"
-        "Commands:\n"
-        "/start - Welcome message\n"
-        "/setlang - Choose your target language\n"
-        "/help - This help\n\n"
-        "Just send any text and I'll translate it to your selected language!",
-        parse_mode="Markdown"
-    )
+📥 *Original* ({src_lang_name}):
+{text}
 
-async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle unknown commands"""
-    await update.message.reply_text(
-        "❌ Unknown command. Use /help for available commands."
-    )
+📤 *Translated* ({tgt_lang_name}):
+{translated.text}
+
+━━━━━━━━━━━━━━━━━━
+💡 Send any text to translate to your preferred language!
+Use /setlang to change target language.
+"""
+        await update.message.reply_text(response, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"Translation error: {e}")
+        await update.message.reply_text(
+            "❌ Sorry, I couldn't translate that text. Please try again.\n"
+            "Make sure the text is supported by Google Translate."
+        )
+
+async def manual_translate(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Manual translation with source and target language."""
+    args = context.args
+    
+    if len(args) < 3:
+        await update.message.reply_text(
+            "❌ *Usage:* /translate [source_lang] [target_lang] [text]\n\n"
+            "Example: /translate en es Hello\n"
+            "Example: /translate auto fr Bonjour\n\n"
+            "Use /languages to see language codes.",
+            parse_mode='Markdown'
+        )
+        return
+    
+    source_lang = args[0]
+    target_lang = args[1]
+    text = ' '.join(args[2:])
+    
+    if target_lang not in LANGUAGE_CODES and target_lang != 'auto':
+        await update.message.reply_text(
+            f"❌ Target language '{target_lang}' not supported. Use /languages to see all codes."
+        )
+        return
+    
+    try:
+        translated = translator.translate(text, src=source_lang, dest=target_lang)
+        
+        src_name = LANGUAGE_CODES.get(translated.src, translated.src)
+        tgt_name = LANGUAGE_CODES.get(target_lang, target_lang)
+        
+        response = f"""
+🔤 *Manual Translation*
+━━━━━━━━━━━━━━━━━━
+
+📥 *Original* ({src_name}):
+{text}
+
+📤 *Translated* ({tgt_name}):
+{translated.text}
+
+━━━━━━━━━━━━━━━━━━
+"""
+        await update.message.reply_text(response, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"Manual translation error: {e}")
+        await update.message.reply_text(
+            "❌ Translation failed. Please check your language codes and try again."
+        )
 
 def main():
-    """Start the bot using long polling mode [citation:3][citation:11]"""
+    """Start the bot."""
+    # Get token from environment variable
     token = os.getenv('TELEGRAM_TOKEN')
     if not token:
-        logger.error("TELEGRAM_TOKEN environment variable not set!")
+        logger.error("No TELEGRAM_TOKEN found in environment variables!")
         return
     
     # Create application
-    app = Application.builder().token(token).build()
+    application = Application.builder().token(token).build()
     
-    # Add handlers
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("setlang", set_lang))
-    app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CallbackQueryHandler(button_callback))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, translate_handler))
-    app.add_handler(MessageHandler(filters.COMMAND, unknown))
+    # Add command handlers
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("setlang", set_language))
+    application.add_handler(CommandHandler("languages", show_languages))
+    application.add_handler(CommandHandler("translate", manual_translate))
     
-    # Start long polling - no webhook URL needed [citation:3]
-    logger.info("Starting bot with long polling...")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    # Handle all text messages for translation
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, translate_text))
+    
+    # Start the bot
+    logger.info("Bot started successfully!")
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
